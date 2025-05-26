@@ -29,41 +29,37 @@ export class ProductService {
   ) {}
 
   async create(createProductDto: CreateProductDto, actorId?: number): Promise<Product> {
-    console.log('Incoming CreateProductDto:', JSON.stringify(createProductDto, null, 2)); // Log DTO
+    // console.log('Incoming CreateProductDto:', JSON.stringify(createProductDto, null, 2)); // Kept for debugging if needed
 
     const store = await this.storeRepository.findOneBy({ id: createProductDto.storeId });
     if (!store) {
       throw new BadRequestException(`Store with ID ${createProductDto.storeId} not found.`);
     }
 
-    // Ensure numeric values from DTO are correctly parsed (though class-validator should handle this)
-    const basePrice = parseFloat(String(createProductDto.basePrice));
     const costPrice = parseFloat(String(createProductDto.costPrice));
+    const price = parseFloat(String(createProductDto.price)); // Selling price
     const stock = parseInt(String(createProductDto.stock), 10);
-    const price = createProductDto.price !== undefined ? parseFloat(String(createProductDto.price)) : basePrice;
     const lowStockThreshold = createProductDto.lowStockThreshold !== undefined ? parseInt(String(createProductDto.lowStockThreshold), 10) : 5;
 
-    if (isNaN(basePrice)) {
-        throw new BadRequestException('Invalid basePrice provided.');
-    }
     if (isNaN(costPrice)) {
         throw new BadRequestException('Invalid costPrice provided.');
+    }
+    if (isNaN(price)) {
+        throw new BadRequestException('Invalid price (selling price) provided.');
     }
 
     const productData: Partial<Product> = {
         name: createProductDto.name,
         description: createProductDto.description,
         category: createProductDto.category,
-        base_price: basePrice, 
         stock: stock,
-        // storeId: createProductDto.storeId, // Let TypeORM handle this via the 'store' relation
-        price: price,
-        cost_price: costPrice, 
+        price: price, // Directly use the selling price from DTO
+        cost_price: costPrice,
         lowStockThreshold: lowStockThreshold,
-        store: store, 
+        store: store,
     };
     
-    console.log('ProductData before create:', JSON.stringify(productData, null, 2)); // Log productData
+    // console.log('ProductData before create:', JSON.stringify(productData, null, 2)); // Kept for debugging if needed
 
     const newProductEntity = this.productRepository.create(productData as Product);
     const savedProduct = await this.productRepository.save(newProductEntity);
@@ -123,8 +119,10 @@ export class ProductService {
     const originalName = productToUpdate.name;
     const originalStoreId = productToUpdate.storeId;
 
-    const { storeId, ...productUpdateData } = updateProductDto;
+    // Destructure basePrice if it exists in DTO to explicitly ignore it
+    const { storeId, basePrice, ...productUpdateDataRest } = updateProductDto as any; 
     let newStore: Store | null = null;
+
     if (storeId) {
       newStore = await this.storeRepository.findOneBy({ id: storeId });
       if (!newStore) {
@@ -132,16 +130,23 @@ export class ProductService {
       }
     }
     
-    const updatedProductData: Partial<Product> = { ...productUpdateData };
+    const updatedProductData: Partial<Product> = { ...productUpdateDataRest };
 
     if (newStore) {
       updatedProductData.store = newStore;
-      updatedProductData.storeId = newStore.id;
+      updatedProductData.storeId = newStore.id; // Explicitly set storeId if store changes
     }
 
-    if (updateProductDto.basePrice !== undefined && updateProductDto.price === undefined) {
-        updatedProductData.price = updateProductDto.basePrice;
-    }
+    // No longer need to default price from basePrice
+    // if (updateProductDto.basePrice !== undefined && updateProductDto.price === undefined) {
+    //     updatedProductData.price = updateProductDto.basePrice;
+    // }
+
+    // Ensure numeric fields are numbers if provided
+    if (updatedProductData.price !== undefined) updatedProductData.price = parseFloat(String(updatedProductData.price));
+    if (updatedProductData.cost_price !== undefined) updatedProductData.cost_price = parseFloat(String(updatedProductData.cost_price));
+    if (updatedProductData.stock !== undefined) updatedProductData.stock = parseInt(String(updatedProductData.stock), 10);
+    if (updatedProductData.lowStockThreshold !== undefined) updatedProductData.lowStockThreshold = parseInt(String(updatedProductData.lowStockThreshold), 10);
 
     const preloadedProduct = await this.productRepository.preload({
         id: id,
@@ -158,7 +163,6 @@ export class ProductService {
     let logDetails = `Product '${originalName}' (ID: ${savedProduct.id}) updated.`
     if (originalName !== savedProduct.name) logDetails += ` Name changed to '${savedProduct.name}'.`;
     if (newStore && originalStoreId !== savedProduct.storeId) logDetails += ` Store changed to ID ${savedProduct.storeId}.`;
-    // Add more details for other changed fields if necessary
 
     const logPayload: LogPayload = {
       userId: actorId,
@@ -277,12 +281,14 @@ export class ProductService {
       'createdAt': 'product.createdAt',
       'name': 'product.name',
       'price': 'product.price',
-      'base_price': 'product.base_price',
-      'basePrice': 'product.base_price',
+      // 'base_price': 'product.base_price', // Removed base_price
+      // 'basePrice': 'product.base_price', // Removed basePrice
       'stock': 'product.stock',
       'category': 'product.category',
       'store_name': 'store.name',
       'storeName': 'store.name',
+      'cost_price': 'product.cost_price',
+      'costPrice': 'product.cost_price'
     };
 
     const sortField = sortMap[sortBy] || 'product.createdAt';

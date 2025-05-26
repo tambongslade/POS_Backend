@@ -26,9 +26,6 @@ export class Product {
   })
   category: ProductCategory;
 
-  @Column('decimal', { precision: 10, scale: 2 }) // For monetary values
-  base_price: number;
-
   @Column('int')
   stock: number;
 
@@ -42,7 +39,7 @@ export class Product {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @Column('decimal', { precision: 10, scale: 2, nullable: true }) // alias or derived from base_price?
+  @Column('decimal', { precision: 10, scale: 2 }) // This is the selling price
   price: number; 
 
   @Column('decimal', { precision: 10, scale: 2 })

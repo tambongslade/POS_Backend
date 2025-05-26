@@ -15,10 +15,6 @@ export class CreateProductDto {
   @IsNotEmpty()
   category: ProductCategory;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  basePrice: number;
-
   @IsInt()
   @Min(0)
   stock: number;
@@ -27,10 +23,9 @@ export class CreateProductDto {
   @Min(1)
   storeId: number;
 
-  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price?: number; // alias or derived from base_price?
+  price: number; // Selling price - now required
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
