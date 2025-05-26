@@ -1,0 +1,562 @@
+@baseUrl = http://localhost:5000/api
+@jwtToken =
+
+###
+# ==================================
+# AUTHENTICATION
+# ==================================
+
+# Login to get JWT token
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "tambongslade17@gmail.com",
+  "password": "Slade2021"
+}
+
+### After login, copy the access_token value from the response and set it to the @jwtToken variable above.
+
+# Get authenticated user profile
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# DASHBOARD
+# ==================================
+
+# Get Dashboard Summary Stats
+GET {{baseUrl}}/stats/summary
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# PERSONNEL (Users) - WITH PAGINATION
+# ==================================
+
+# Create Personnel
+POST {{baseUrl}}/personnel
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "phone": "1234567890",
+  "password": "password123",
+  "role": "CASHIER",
+  "storeId": 1
+}
+
+###
+# Get All Personnel - Basic Pagination
+GET {{baseUrl}}/personnel?page=1&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - With Sorting
+GET {{baseUrl}}/personnel?page=1&limit=5&sortBy=firstName&sortOrder=asc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - Filter by Role
+GET {{baseUrl}}/personnel?page=1&limit=10&role=CASHIER
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - Filter by Store
+GET {{baseUrl}}/personnel?page=1&limit=10&storeId=1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - Search by Name/Email
+GET {{baseUrl}}/personnel?page=1&limit=10&search=john
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - Date Range Filter
+GET {{baseUrl}}/personnel?page=1&limit=10&startDate=2024-01-01&endDate=2024-12-31
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel - Combined Filters
+GET {{baseUrl}}/personnel?page=1&limit=10&role=MANAGER&storeId=1&sortBy=createdAt&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Personnel by ID
+GET {{baseUrl}}/personnel/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Update Personnel
+PUT {{baseUrl}}/personnel/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Johnathan"
+}
+
+###
+# Delete Personnel
+DELETE {{baseUrl}}/personnel/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# STORES
+# ==================================
+
+# Create Store
+POST {{baseUrl}}/stores
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "name": "Main Street Branch",
+  "address": "123 Main St",
+  "phone": "555-0101",
+  "managerId": 1
+}
+
+###
+# Get All Stores
+GET {{baseUrl}}/stores
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Store by ID
+GET {{baseUrl}}/stores/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Update Store
+PUT {{baseUrl}}/stores/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "phone": "555-0199"
+}
+
+###
+# Delete Store
+DELETE {{baseUrl}}/stores/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# PRODUCTS - WITH PAGINATION
+# ==================================
+
+# Get Product Categories
+GET {{baseUrl}}/products/categories
+Authorization: Bearer {{jwtToken}}
+
+###
+# Create Product
+POST {{baseUrl}}/products
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "name": "Smartphone X",
+  "description": "Latest generation smartphone",
+  "category": "PHONE",
+  "price": 699.99,
+  "cost_price": 450.00,
+  "base_price": 650.00,
+  "stock": 50,
+  "lowStockThreshold": 10,
+  "storeId": 1
+}
+
+###
+# Get All Products - Basic Pagination
+GET {{baseUrl}}/products?page=1&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - With Sorting
+GET {{baseUrl}}/products?page=1&limit=5&sortBy=name&sortOrder=asc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Filter by Store
+GET {{baseUrl}}/products?page=1&limit=10&storeId=1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Filter by Category
+GET {{baseUrl}}/products?page=1&limit=10&category=PHONE
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Stock Filters
+GET {{baseUrl}}/products?page=1&limit=10&minStock=20&maxStock=100
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Low Stock Alert
+GET {{baseUrl}}/products?page=1&limit=10&lowStock=true
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Search by Name
+GET {{baseUrl}}/products?page=1&limit=10&search=smartphone
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Products - Combined Filters
+GET {{baseUrl}}/products?page=1&limit=10&category=LAPTOP&storeId=1&minStock=5&sortBy=price&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Product by ID
+GET {{baseUrl}}/products/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Update Product
+PUT {{baseUrl}}/products/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "price": 32.99,
+  "stock": 95
+}
+
+###
+# Delete Product
+DELETE {{baseUrl}}/products/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# CUSTOMERS - WITH PAGINATION
+# ==================================
+
+# Create Customer
+POST {{baseUrl}}/customers
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Alice",
+  "lastName": "Smith",
+  "email": "alice.smith@example.com",
+  "phoneNumber": "555-0202"
+}
+
+###
+# Get All Customers - Basic Pagination
+GET {{baseUrl}}/customers?page=1&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Customers - With Sorting
+GET {{baseUrl}}/customers?page=1&limit=5&sortBy=firstName&sortOrder=asc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Customers - Search by Name/Email/Phone
+GET {{baseUrl}}/customers?page=1&limit=10&search=alice
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Customers - Date Range Filter
+GET {{baseUrl}}/customers?page=1&limit=10&startDate=2024-01-01&endDate=2024-12-31
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Customers - Combined Filters
+GET {{baseUrl}}/customers?page=1&limit=10&search=smith&sortBy=createdAt&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Customer by ID
+GET {{baseUrl}}/customers/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Update Customer
+PUT {{baseUrl}}/customers/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "email": "alice.s@example.com"
+}
+
+###
+# Delete Customer
+DELETE {{baseUrl}}/customers/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# ORDERS - WITH PAGINATION
+# ==================================
+
+# Create Order
+POST {{baseUrl}}/orders
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "storeId": 1,
+  "userId": 1,
+  "customerId": 1,
+  "items": [
+    { "productId": 1, "quantity": 2, "unitPrice": 29.99 },
+    { "productId": 2, "quantity": 1, "unitPrice": 49.99 }
+  ],
+  "status": "Pending",
+  "paymentMethod": "Credit Card"
+}
+
+###
+# Get All Orders - Basic Pagination
+GET {{baseUrl}}/orders?page=1&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - With Sorting
+GET {{baseUrl}}/orders?page=1&limit=5&sortBy=createdAt&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Filter by Store
+GET {{baseUrl}}/orders?page=1&limit=10&storeId=1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Filter by Status
+GET {{baseUrl}}/orders?page=1&limit=10&status=Completed
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Filter by Customer
+GET {{baseUrl}}/orders?page=1&limit=10&customerId=1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Date Range Filter
+GET {{baseUrl}}/orders?page=1&limit=10&startDate=2024-01-01&endDate=2024-12-31
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Search (customer name, email, product name)
+GET {{baseUrl}}/orders?page=1&limit=10&search=smartphone
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Orders - Combined Filters
+GET {{baseUrl}}/orders?page=1&limit=10&status=Pending&storeId=1&sortBy=totalAmount&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Order by ID
+GET {{baseUrl}}/orders/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Update Order Status
+PUT {{baseUrl}}/orders/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "status": "Completed"
+}
+
+###
+# Delete Order
+DELETE {{baseUrl}}/orders/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# SALES - WITH ADVANCED PAGINATION
+# ==================================
+
+# Create Sale
+POST {{baseUrl}}/sales
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "orderId": 1,
+  "transactionId": "CH_123ABC456DEF",
+  "paymentMethodReceived": "Credit Card",
+  "amountPaid": 104.97,
+  "notes": "Sale completed successfully"
+}
+
+###
+# Get All Sales - Basic Pagination
+GET {{baseUrl}}/sales?page=1&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - With Sorting
+GET {{baseUrl}}/sales?page=1&limit=5&sortBy=createdAt&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Filter by Store
+GET {{baseUrl}}/sales?page=1&limit=10&store=Main%20Branch
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Filter by Category
+GET {{baseUrl}}/sales?page=1&limit=10&category=PHONE
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Date Range Filter
+GET {{baseUrl}}/sales?page=1&limit=10&startDate=2024-01-01&endDate=2024-12-31
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Search (customer name, email, product name)
+GET {{baseUrl}}/sales?page=1&limit=10&search=alice
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Legacy Parameters (backward compatibility)
+GET {{baseUrl}}/sales?page=1&limit=10&storeId=1&personnelId=1&customerId=1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales - Combined Advanced Filters
+GET {{baseUrl}}/sales?page=1&limit=10&store=Main&category=PHONE&startDate=2024-01-01&sortBy=totalAmount&sortOrder=desc
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales Analytics - Monthly
+GET {{baseUrl}}/sales/analytics?timeframe=monthly
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales Analytics - Custom Date Range
+GET {{baseUrl}}/sales/analytics?startDate=2024-01-01&endDate=2024-12-31
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sales Analytics - By Store
+GET {{baseUrl}}/sales/analytics?timeframe=weekly&store=Main%20Branch
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Sale by ID
+GET {{baseUrl}}/sales/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# CART OPERATIONS
+# ==================================
+
+# Create Cart
+POST {{baseUrl}}/carts
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "customerId": 1
+}
+
+###
+# Get All Carts
+GET {{baseUrl}}/carts
+Authorization: Bearer {{jwtToken}}
+
+###
+# Get Cart by ID
+GET {{baseUrl}}/carts/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Add Item to Cart
+POST {{baseUrl}}/carts/1/items
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "quantity": 2
+}
+
+###
+# Update Cart Item
+PUT {{baseUrl}}/carts/1/items/1
+Authorization: Bearer {{jwtToken}}
+Content-Type: application/json
+
+{
+  "quantity": 3
+}
+
+###
+# Remove Item from Cart
+DELETE {{baseUrl}}/carts/1/items/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# Delete Cart
+DELETE {{baseUrl}}/carts/1
+Authorization: Bearer {{jwtToken}}
+
+###
+# ==================================
+# PAGINATION EXAMPLES SUMMARY
+# ==================================
+
+# Basic Pagination Parameters:
+# - page: Page number (default: 1)
+# - limit: Items per page (default: 10, max: 100)
+
+# Sorting Parameters:
+# - sortBy: Field to sort by (createdAt, name, price, etc.)
+# - sortOrder: asc or desc (default: desc)
+
+# Common Filters:
+# - search: Text search across relevant fields
+# - startDate/endDate: Date range filters (YYYY-MM-DD format)
+# - storeId: Filter by store ID
+# - status: Filter by status (for orders)
+# - category: Filter by product category
+
+# Response Format (all paginated endpoints):
+# {
+#   "[entityName]": [...], // Array of entities
+#   "total": 100,          // Total count
+#   "page": 1,             // Current page
+#   "limit": 10,           // Items per page
+#   "totalPages": 10       // Total pages
+# }
+
+###
+# ==================================
+# ERROR HANDLING EXAMPLES
+# ==================================
+
+# Invalid page number (should return 400)
+GET {{baseUrl}}/products?page=0&limit=10
+Authorization: Bearer {{jwtToken}}
+
+###
+# Limit too high (should return 400)
+GET {{baseUrl}}/products?page=1&limit=200
+Authorization: Bearer {{jwtToken}}
+
+###
+# Invalid date format (should return 400)
+GET {{baseUrl}}/sales?startDate=invalid-date
+Authorization: Bearer {{jwtToken}} 

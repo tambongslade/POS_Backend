@@ -1,0 +1,67 @@
+### Test Authentication Fix - Store ID Issue
+### Base URL: http://localhost:5000
+
+### Variables
+@baseUrl = http://localhost:5000
+@token = YOUR_JWT_TOKEN_HERE
+
+### 1. Login and check if storeId is now correctly returned
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "tambongslade17@gmail.com",
+  "password": "Slade2021"
+}
+
+### Expected Response:
+### {
+###   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+###   "user": {
+###     "id": 5,
+###     "email": "tambongslade17@gmail.com",
+###     "firstName": null,
+###     "lastName": null,
+###     "role": "Admin",
+###     "phone": "1111111111",
+###     "storeId": 3,  <-- This should now be 3, not 1
+###     "createdAt": "2024-..."
+###   }
+### }
+
+### 2. Get user profile to verify JWT token contains correct data
+GET {{baseUrl}}/api/auth/profile
+Authorization: Bearer {{token}}
+
+### Expected Response:
+### {
+###   "userId": 5,
+###   "email": "tambongslade17@gmail.com",
+###   "roles": "Admin",
+###   "storeId": 3,  <-- This should also be 3
+###   "firstName": null,
+###   "lastName": null,
+###   "phone": "1111111111"
+### }
+
+### 3. Test a store-specific endpoint to ensure it works
+GET {{baseUrl}}/api/stores
+Authorization: Bearer {{token}}
+
+###
+### What was fixed:
+###
+### 1. Login Response: Now includes complete user data with correct storeId
+### 2. JWT Payload: Now includes storeId in the token payload
+### 3. JWT Strategy: Now returns current storeId from database (not cached)
+### 4. Profile Endpoint: Now returns complete user information
+###
+### The issue was that:
+### - Login only returned access_token, not user data
+### - JWT strategy returned minimal user info without storeId
+### - Frontend was probably using cached/incorrect storeId value
+###
+### Now the frontend will receive the correct storeId (3) in both:
+### - Login response user object
+### - Profile endpoint response
+### - All subsequent authenticated requests 

@@ -1,0 +1,186 @@
+### WhatsApp Invoice and Transaction Follow-up API Endpoints
+### Base URL: http://localhost:5000
+
+### Variables
+@baseUrl = http://localhost:5000
+@token = YOUR_JWT_TOKEN_HERE
+
+### 1. Send Invoice via WhatsApp
+POST {{baseUrl}}/api/whatsapp/send-invoice
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "saleId": 1,
+  "customerPhone": "+1234567890"
+}
+
+### 2. Add Pending Transaction for Follow-up
+POST {{baseUrl}}/api/whatsapp/add-pending-transaction
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "orderId": 1,
+  "customerPhone": "+1234567890",
+  "customerName": "John Doe",
+  "totalAmount": 299.99
+}
+
+### 3. Get All Pending Transactions
+GET {{baseUrl}}/api/whatsapp/pending-transactions
+Authorization: Bearer {{token}}
+
+### 4. Get Specific Pending Transaction
+GET {{baseUrl}}/api/whatsapp/pending-transactions/1
+Authorization: Bearer {{token}}
+
+### 5. Send Payment Reminder
+POST {{baseUrl}}/api/whatsapp/send-reminder/1
+Authorization: Bearer {{token}}
+
+### 6. Remove Pending Transaction
+DELETE {{baseUrl}}/api/whatsapp/pending-transactions/1
+Authorization: Bearer {{token}}
+
+### 7. Get WhatsApp Connection Status
+GET {{baseUrl}}/api/whatsapp/connection-status
+Authorization: Bearer {{token}}
+
+### 8. Get Transaction Analytics
+GET {{baseUrl}}/api/whatsapp/analytics
+Authorization: Bearer {{token}}
+
+### 9. Get Transaction Analytics for Last 7 Days
+GET {{baseUrl}}/api/whatsapp/analytics?days=7
+Authorization: Bearer {{token}}
+
+### 10. Get Transaction Analytics for Last 90 Days
+GET {{baseUrl}}/api/whatsapp/analytics?days=90
+Authorization: Bearer {{token}}
+
+###
+### Example Responses:
+###
+
+### Send Invoice Response:
+# {
+#   "success": true,
+#   "message": "Invoice sent successfully via WhatsApp",
+#   "saleId": 1,
+#   "customerPhone": "+1234567890"
+# }
+
+### Pending Transactions Response:
+# {
+#   "transactions": [
+#     {
+#       "id": 1640995200000,
+#       "customerPhone": "+1234567890",
+#       "customerName": "John Doe",
+#       "orderId": 1,
+#       "totalAmount": 299.99,
+#       "status": "PENDING",
+#       "createdAt": "2023-12-31T12:00:00.000Z",
+#       "reminderCount": 0
+#     }
+#   ],
+#   "total": 1,
+#   "summary": {
+#     "pending": 1,
+#     "remindedOnce": 0,
+#     "remindedTwice": 0,
+#     "abandoned": 0
+#   }
+# }
+
+### Connection Status Response:
+# {
+#   "success": true,
+#   "connected": true,
+#   "qrCode": null,
+#   "state": "open"
+# }
+
+### Analytics Response:
+# {
+#   "success": true,
+#   "analytics": {
+#     "totalTransactions": 5,
+#     "totalValue": 1499.95,
+#     "statusBreakdown": {
+#       "pending": 2,
+#       "remindedOnce": 1,
+#       "remindedTwice": 1,
+#       "abandoned": 1
+#     },
+#     "averageValue": 299.99,
+#     "conversionRate": 80,
+#     "period": "Last 30 days"
+#   }
+# }
+
+###
+### Error Responses:
+###
+
+### 401 Unauthorized:
+# {
+#   "statusCode": 401,
+#   "message": "Unauthorized"
+# }
+
+### 403 Forbidden (Insufficient Role):
+# {
+#   "statusCode": 403,
+#   "message": "Forbidden resource"
+# }
+
+### 404 Not Found:
+# {
+#   "statusCode": 404,
+#   "message": "Sale not found"
+# }
+
+### 500 Internal Server Error:
+# {
+#   "statusCode": 500,
+#   "message": "Failed to send invoice via WhatsApp"
+# }
+
+###
+### Usage Notes:
+###
+### 1. Authentication Required:
+###    All endpoints require JWT authentication via Bearer token
+###
+### 2. Role-Based Access:
+###    - ADMIN, MANAGER, CASHIER: Can send invoices, add transactions, send reminders
+###    - ADMIN, MANAGER: Can view all transactions, analytics, connection status
+###
+### 3. Phone Number Format:
+###    - Use international format: +1234567890
+###    - System will auto-format for WhatsApp
+###
+### 4. Transaction Follow-up Flow:
+###    - Add pending transaction when order is created but payment is pending
+###    - System automatically sends reminders:
+###      * First reminder: 2 hours after creation
+###      * Second reminder: 24 hours after first reminder
+###      * Marked as abandoned: 48 hours after second reminder
+###
+### 5. WhatsApp Connection:
+###    - First time setup requires QR code scan
+###    - Check connection status before sending messages
+###    - Service automatically reconnects if disconnected
+###
+### 6. Invoice Content:
+###    - Includes sale details, order items, customer info
+###    - Professional formatting with emojis
+###    - Payment confirmation message
+###
+### 7. Analytics Insights:
+###    - Track conversion rates
+###    - Monitor reminder effectiveness
+###    - Identify abandoned transactions
+###    - Filter by time periods 
