@@ -39,4 +39,9 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   lowStockThreshold?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255) // Assuming IMEI has a max length
+  imei?: string;
 } 

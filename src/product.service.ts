@@ -57,6 +57,7 @@ export class ProductService {
         cost_price: costPrice,
         lowStockThreshold: lowStockThreshold,
         store: store,
+        imei: createProductDto.imei,
     };
     
     // console.log('ProductData before create:', JSON.stringify(productData, null, 2)); // Kept for debugging if needed
@@ -131,6 +132,9 @@ export class ProductService {
     }
     
     const updatedProductData: Partial<Product> = { ...productUpdateDataRest };
+    if (updateProductDto.imei !== undefined) {
+      updatedProductData.imei = updateProductDto.imei;
+    }
 
     if (newStore) {
       updatedProductData.store = newStore;

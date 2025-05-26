@@ -48,5 +48,8 @@ export class Product {
   @Column('int', { nullable: true, name: 'low_stock_threshold' }) // Renamed from stock_level and mapped to DB name
   lowStockThreshold: number;
 
+  @Column({ nullable: true }) // IMEI is optional
+  imei?: string;
+
   // We might need an @UpdateDateColumn if products can be updated
 } 
