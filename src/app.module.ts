@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { DebugController } from './debug.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import {
   Store,
@@ -93,6 +94,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     WhatsappModule,
     AiChatbotModule,
     DashboardModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController, DebugController],
   providers: [AppService],

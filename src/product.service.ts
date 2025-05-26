@@ -264,4 +264,17 @@ export class ProductService {
     const sortField = sortMap[sortBy] || 'product.createdAt';
     queryBuilder.orderBy(sortField, sortOrder.toUpperCase() as 'ASC' | 'DESC');
   }
+
+  async getLowStockProductsReport(): Promise<Product[]> {
+    return this.productRepository.find({
+      where: {
+        stock: Raw(alias => `${alias} <= product.lowStockThreshold`)
+      },
+      relations: ['store'], // Include store if needed in the report
+      order: {
+        storeId: 'ASC', // Optional: order by store then by name for readability
+        name: 'ASC'
+      }
+    });
+  }
 }

@@ -550,4 +550,42 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       state: this.connectionState,
     };
   }
+
+  async sendLowStockReport(products: Product[], targetPhoneNumber: string): Promise<boolean> {
+    if (!this.isConnectedFlag) {
+      this.logger.warn('WhatsApp not connected. Cannot send low stock report.');
+      return false;
+    }
+
+    if (!products || products.length === 0) {
+      this.logger.log('No low stock products to report.');
+      // Optionally send a message saying "All products have sufficient stock."
+      // await this.sendMessage(targetPhoneNumber, "All products currently have sufficient stock. 👍");
+      return true; // No report needed, but operation considered successful
+    }
+
+    let reportMessage = "🚨 *Low Stock Report* 🚨\n\n";
+    reportMessage += "The following products are running low on stock:\n";
+    reportMessage += "${'─'.repeat(30)}\n";
+
+    products.forEach(product => {
+      reportMessage += `📦 *${product.name}* (ID: ${product.id})\n`;
+      reportMessage += `   Store: ${product.store ? product.store.name : 'N/A'} (ID: ${product.storeId})\n`;
+      reportMessage += `   Current Stock: *${product.stock}*\n`;
+      reportMessage += `   Threshold: ${product.lowStockThreshold}\n`;
+      reportMessage += "${'─'.repeat(30)}\n";
+    });
+
+    reportMessage += "\nPlease restock these items soon to avoid shortages.";
+
+    try {
+      const formattedPhone = this.formatPhoneNumber(targetPhoneNumber);
+      await this.sendMessage(formattedPhone, reportMessage);
+      this.logger.log(`Low stock report sent successfully to ${formattedPhone}. Items reported: ${products.length}`);
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send low stock report:', error);
+      return false;
+    }
+  }
 } 

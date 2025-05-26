@@ -1,12 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Sale } from './models'; // Assuming Sale model will be passed with customer info populated
-import { WhatsappService } from './whatsapp/whatsapp.service'; // Corrected import path
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { ProductService } from './product.service';
+import { WhatsappService } from './whatsapp/whatsapp.service';
+import { Sale } from './models'; // Assuming Sale is used elsewhere, kept it
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(private readonly whatsappService: WhatsappService) {} // Inject WhatsappService
+  constructor(
+    private readonly whatsappService: WhatsappService,
+    private readonly productService: ProductService, // Injected ProductService
+  ) {}
 
   /**
    * Sends a sale invoice notification (placeholder).
@@ -18,7 +23,7 @@ export class NotificationService {
 
     if (sale.customer && sale.customer.phoneNumber) {
       const customerPhoneNumber = sale.customer.phoneNumber;
-      const invoiceMessage = `Dear ${sale.customer.firstName || 'Customer'}, your invoice for sale ID ${sale.id} (Order ID: ${sale.orderId}) for a total of ${sale.amountPaid} is ready. Thank you for your purchase!`;
+      let invoiceMessage = `Dear ${sale.customer.firstName || 'Customer'}, your invoice for sale ID ${sale.id} (Order ID: ${sale.orderId}) for a total of ${sale.amountPaid} XAF is ready. Thank you for your purchase!`;
       
       this.logger.log(`Sending WhatsApp invoice to: ${customerPhoneNumber} via WhatsappService.`);
       this.logger.log(`Message: "${invoiceMessage}"`);
@@ -28,8 +33,7 @@ export class NotificationService {
         if (result && result.key && result.key.id) {
           this.logger.log(`Successfully sent WhatsApp message for Sale ID: ${sale.id}. Message ID: ${result.key.id}`);
         } else {
-          this.logger.error(`Failed to send WhatsApp message for Sale ID: ${sale.id}. WhatsappService.sendMessage returned undefined or no message ID.`);
-          // Optionally, queue for retry or log to a more persistent error tracking
+          this.logger.error(`Failed to send WhatsApp message for Sale ID: ${sale.id}.`);
         }
       } catch (error) {
         this.logger.error(`Error calling WhatsappService for Sale ID: ${sale.id}`, error.stack);
@@ -39,12 +43,23 @@ export class NotificationService {
     }
   }
 
-  // Example of what a private method for Baileys might look like (to be implemented later)
-  // private async sendWhatsAppMessage(recipient: string, message: string): Promise<void> {
-  //   // 1. Ensure Baileys client is connected/authenticated
-  //   // 2. Format recipient JID (e.g., recipient@s.whatsapp.net)
-  //   // 3. Use Baileys sock.sendMessage(jid, { text: message })
-  //   // Handle errors, disconnections, etc.
-  //   this.logger.debug(`[Baileys Placeholder] Sending to ${recipient}: ${message}`);
-  // }
+  @Cron(CronExpression.EVERY_DAY_AT_8AM, { 
+    name: 'lowStockNotification',
+  })
+  async handleLowStockCheck() {
+    this.logger.log('Running scheduled job: Checking for low stock products...');
+    try {
+      const lowStockProducts = await this.productService.getLowStockProductsReport();
+      
+      if (lowStockProducts && lowStockProducts.length > 0) {
+        const targetPhoneNumber = '670527426'; // As specified by user
+        this.logger.log(`Found ${lowStockProducts.length} low stock products. Sending report to ${targetPhoneNumber}.`);
+        await this.whatsappService.sendLowStockReport(lowStockProducts, targetPhoneNumber);
+      } else {
+        this.logger.log('No low stock products found. No report sent.');
+      }
+    } catch (error) {
+      this.logger.error('Error during scheduled low stock check:', error.stack);
+    }
+  }
 }
