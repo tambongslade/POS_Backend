@@ -336,4 +336,37 @@ export class WhatsappInvoiceController {
       throw new HttpException('Internal server error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Get('qr-code')
+  @Roles(Role.ADMIN, Role.MANAGER)
+  async getQrCode() {
+    try {
+      const qrString = this.whatsappService.getCurrentQRCode();
+      if (qrString) {
+        return { 
+          success: true, 
+          message: 'QR code string retrieved. Use a QR generator to display it.',
+          qrCode: qrString 
+        };
+      } else {
+        const status = this.whatsappService.getConnectionStatus();
+        if (status.connected) {
+          return { 
+            success: true, 
+            message: 'WhatsApp is already connected. No QR code available.', 
+            qrCode: null 
+          };
+        } else {
+          throw new HttpException(
+            'QR code not available yet. WhatsApp might be initializing or disconnected. Please try again shortly.',
+            HttpStatus.NOT_FOUND
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      console.error('Error retrieving QR code:', error);
+      throw new HttpException('Failed to retrieve QR code', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 } 

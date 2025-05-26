@@ -29,7 +29,9 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.0.0",
+    "@nestjs/swagger": "^11.2.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@types/qrcode": "^1.5.5",
     "@whiskeysockets/baileys": "^6.7.17",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
@@ -39,6 +41,8 @@
     "passport-local": "^1.0.0",
     "pg": "^8.15.6",
     "pino": "^9.7.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.23"

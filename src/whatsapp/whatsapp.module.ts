@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { WhatsappService } from './whatsapp.service';
 import { WhatsappInvoiceController } from './whatsapp-invoice.controller';
+import { WhatsappController } from './whatsapp.controller';
 import { SaleService } from '../sale.service';
 import { OrderService } from '../order.service';
 import { CustomerService } from '../customer.service';
@@ -32,7 +33,7 @@ import { ActivityLogModule } from '../activity-log/activity-log.module';
     forwardRef(() => NotificationModule),
     ActivityLogModule,
   ],
-  controllers: [WhatsappInvoiceController],
+  controllers: [WhatsappInvoiceController, WhatsappController],
   providers: [
     WhatsappService,
     SaleService,

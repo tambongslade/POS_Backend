@@ -15,6 +15,8 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as qrcode from 'qrcode-terminal'; // Import qrcode-terminal
+import * as qrcodeGenerator from 'qrcode'; // Import qrcode for image generation
 import pino from 'pino';
 import { AiChatbotService } from '../ai-chatbot/ai-chatbot.service';
 import { Sale, Order, Customer, Product } from '../models';
@@ -129,7 +131,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: true,
       logger: this.baileysLogger,
       browser: ['NestJS-POS', 'Chrome', '1.0.0'],
     });
@@ -138,30 +139,45 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
 
     this.sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
+      this.connectionState = connection || 'close';
+
       if (qr) {
-        // this.logger.log('QR code received, scan please:'); // Commented out
-        // this.logger.log(qr); // Commented out
+        this.qrCode = qr; // Store the full QR string for the HTTP endpoint
+        this.logger.log(`Full QR string received: ${qr}`); // Log the full QR string
+
+        // Baileys now typically sends a string like "1@longstring,anotherlongstring,anotherlongstring=="
+        // The first part before the comma is usually enough for qrcode-terminal. Added trim() for safety.
+        const qrToPrint = qr.includes(',') ? qr.split(',')[0].trim() : qr.trim();
+        this.logger.log(`String being used for terminal QR: "${qrToPrint}"`); // Log the processed string
+
+        this.logger.log('New QR code received. Scan below or access via /api/whatsapp/qr-code endpoint:');
+        qrcode.generate(qrToPrint, { small: true }, (qrAscii) => {
+          console.log(qrAscii); // Print QR to console
+        });
       }
       if (connection === 'close') {
         this.isConnectedFlag = false;
-        const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+        // this.qrCode = null; // Don't nullify here if we want the last QR to be retrievable if connection drops before open
+        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         this.logger.error(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
         if (shouldReconnect) {
-          this.start();
+          this.connectionRetryCount++;
+          if (this.connectionRetryCount <= this.maxConnectionRetries) {
+            this.logger.log(`Attempting to reconnect... (Attempt ${this.connectionRetryCount})`);
+            this.start();
+          } else {
+            this.logger.error('Max reconnection attempts reached. Check connection or manually restart.');
+          }
+        } else {
+          this.logger.log('Connection closed permanently (likely logged out). New QR scan required.');
+          this.qrCode = null; // Clear QR here as it's definitely invalid
         }
       } else if (connection === 'open') {
         this.isConnectedFlag = true;
-        this.qrCode = null;
-        // this.logger.log('WhatsApp connection successful.'); // Commented out
-        // try { // Commented out startup messages
-        //   await this.sendMessage(this.adminJid, 'Bot connected. Service is active.');
-        //   await this.sendMessage(this.adminJid, 'Notification: this broadcast messages');
-        //   await this.sendMessage(this.adminJid, 'Notification: also deleted messages');
-        // } catch (error) {
-        //   this.logger.error('Failed to send startup messages to admin', error);
-        // }
+        this.qrCode = null; // Clear QR code once connection is open
+        this.connectionRetryCount = 0;
+        this.logger.log('WhatsApp connection successful.');
       }
-      this.connectionState = connection || 'close';
     });
 
     this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -549,6 +565,31 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       qrCode: this.qrCode,
       state: this.connectionState,
     };
+  }
+
+  getCurrentQRCode(): string | null {
+    return this.qrCode;
+  }
+
+  async getCurrentQRCodeAsImage(): Promise<Buffer | null> {
+    if (this.qrCode) {
+      try {
+        this.logger.log(`Generating QR image from string: ${this.qrCode.substring(0, 30)}...`); // Log part of QR string
+        const qrImageBuffer = await qrcodeGenerator.toBuffer(this.qrCode, {
+          type: 'png',
+          errorCorrectionLevel: 'L',
+          margin: 2,
+          scale: 4,
+        });
+        return qrImageBuffer;
+      } catch (error) {
+        this.logger.error('Failed to generate QR code image in service:', error.stack);
+        return null;
+      }
+    } else {
+      this.logger.warn('getCurrentQRCodeAsImage called but this.qrCode is null.'); // ADDED THIS LOG
+    }
+    return null;
   }
 
   async sendLowStockReport(products: Product[], targetPhoneNumber: string): Promise<boolean> {

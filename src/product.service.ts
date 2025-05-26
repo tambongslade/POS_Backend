@@ -29,19 +29,43 @@ export class ProductService {
   ) {}
 
   async create(createProductDto: CreateProductDto, actorId?: number): Promise<Product> {
+    console.log('Incoming CreateProductDto:', JSON.stringify(createProductDto, null, 2)); // Log DTO
+
     const store = await this.storeRepository.findOneBy({ id: createProductDto.storeId });
     if (!store) {
       throw new BadRequestException(`Store with ID ${createProductDto.storeId} not found.`);
     }
 
-    const productData: Partial<Product> = {
-        ...createProductDto,
-        price: createProductDto.price !== undefined ? createProductDto.price : createProductDto.basePrice,
-        lowStockThreshold: createProductDto.lowStockThreshold !== undefined ? createProductDto.lowStockThreshold : 5,
-        store: store, // Associate with the found store entity
-    };
+    // Ensure numeric values from DTO are correctly parsed (though class-validator should handle this)
+    const basePrice = parseFloat(String(createProductDto.basePrice));
+    const costPrice = parseFloat(String(createProductDto.costPrice));
+    const stock = parseInt(String(createProductDto.stock), 10);
+    const price = createProductDto.price !== undefined ? parseFloat(String(createProductDto.price)) : basePrice;
+    const lowStockThreshold = createProductDto.lowStockThreshold !== undefined ? parseInt(String(createProductDto.lowStockThreshold), 10) : 5;
 
-    const newProductEntity = this.productRepository.create(productData);
+    if (isNaN(basePrice)) {
+        throw new BadRequestException('Invalid basePrice provided.');
+    }
+    if (isNaN(costPrice)) {
+        throw new BadRequestException('Invalid costPrice provided.');
+    }
+
+    const productData: Partial<Product> = {
+        name: createProductDto.name,
+        description: createProductDto.description,
+        category: createProductDto.category,
+        base_price: basePrice, 
+        stock: stock,
+        // storeId: createProductDto.storeId, // Let TypeORM handle this via the 'store' relation
+        price: price,
+        cost_price: costPrice, 
+        lowStockThreshold: lowStockThreshold,
+        store: store, 
+    };
+    
+    console.log('ProductData before create:', JSON.stringify(productData, null, 2)); // Log productData
+
+    const newProductEntity = this.productRepository.create(productData as Product);
     const savedProduct = await this.productRepository.save(newProductEntity);
 
     // Log activity
