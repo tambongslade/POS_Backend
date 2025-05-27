@@ -21,7 +21,11 @@ import pino from 'pino';
 import { AiChatbotService } from '../ai-chatbot/ai-chatbot.service';
 import { Sale, Order, Customer, Product } from '../models';
 
-const SESSION_DIR = path.join(__dirname, '../..\/whatsapp-session'); // Store session outside src
+// Constants
+const SESSION_DIR = path.join(process.cwd(), 'whatsapp-session');
+const RECONNECT_INTERVAL = 3000; // 3 seconds
+const MAX_RECONNECT_RETRIES = 5;
+const SESSION_FLUSH_INTERVAL = 60000; // 1 minute
 
 export interface InvoiceData {
   sale: Sale;
@@ -55,37 +59,226 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappService.name);
   private baileysLogger: pino.Logger;
   private connectionRetryCount = 0;
-  private maxConnectionRetries = 5;
+  private maxConnectionRetries = MAX_RECONNECT_RETRIES;
+  private reconnectInterval: NodeJS.Timeout | null = null;
+  private sessionFlushInterval: NodeJS.Timeout | null = null;
   public isConnectedFlag: boolean = false;
-  private readonly adminJid = '237674805934@s.whatsapp.net'; // Your WhatsApp JID
-  private messageCache = new Map<string, WAMessage>(); // Cache for deleted messages
+  private readonly adminJid: string;
+  private messageCache = new Map<string, WAMessage>();
   private qrCode: string | null = null;
   private connectionState: string = 'close';
   private pendingTransactions: Map<number, TransactionFollowUp> = new Map();
+  private authState: any = null;
+  private saveCreds: any = null;
 
   constructor(
     private configService: ConfigService,
     private aiChatbotService: AiChatbotService,
   ) {
-    // Ensure session directory exists
+    this.adminJid = this.configService.get<string>('WHATSAPP_ADMIN_JID') || '237674805934@s.whatsapp.net';
+    this.initializeSessionDirectory();
+    this.initializeLogger();
+  }
+
+  private initializeSessionDirectory(): void {
     if (!fs.existsSync(SESSION_DIR)) {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
-      // this.logger.log(`Created WhatsApp session directory: ${SESSION_DIR}`); // Commented out
+      this.logger.log(`Created WhatsApp session directory: ${SESSION_DIR}`);
     }
-    // Initialize Baileys logger (can be configured further)
-    this.baileysLogger = pino({ level: 'silent' }); // Set to silent
+  }
+
+  private initializeLogger(): void {
+    this.baileysLogger = pino({ 
+      level: this.configService.get<string>('NODE_ENV') === 'production' ? 'error' : 'silent'
+    });
   }
 
   async onModuleInit() {
-    // this.logger.log('WhatsappService initializing...'); // Commented out
     await this.start();
     this.startTransactionFollowUpScheduler();
+    this.startSessionFlushInterval();
   }
 
   async onModuleDestroy() {
-    // this.logger.log('WhatsappService destroying...'); // Commented out
+    this.cleanup();
+  }
+
+  private cleanup(): void {
     this.isConnectedFlag = false;
-    this.sock?.end(new Error('Module destroyed'));
+    if (this.reconnectInterval) {
+      clearInterval(this.reconnectInterval);
+      this.reconnectInterval = null;
+    }
+    if (this.sessionFlushInterval) {
+      clearInterval(this.sessionFlushInterval);
+      this.sessionFlushInterval = null;
+    }
+    if (this.sock) {
+      this.sock.end(new Error('Module destroyed'));
+      this.sock = undefined;
+    }
+  }
+
+  private startSessionFlushInterval(): void {
+    this.sessionFlushInterval = setInterval(async () => {
+      if (this.saveCreds) {
+        try {
+          await this.saveCreds();
+          this.logger.debug('Session credentials flushed to disk');
+        } catch (error) {
+          this.logger.error('Failed to flush session credentials:', error);
+        }
+      }
+    }, SESSION_FLUSH_INTERVAL);
+  }
+
+  async start(): Promise<void> {
+    try {
+      // Load or initialize auth state
+      const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+      this.authState = state;
+      this.saveCreds = saveCreds;
+
+      // Get latest version
+      const { version, isLatest } = await fetchLatestBaileysVersion();
+      this.logger.log(`Using Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
+
+      // Create socket connection
+      this.sock = makeWASocket({
+        version,
+        auth: state,
+        logger: this.baileysLogger,
+        browser: ['NestJS-POS', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60_000, // 60 seconds
+        qrTimeout: 40_000, // 40 seconds
+        defaultQueryTimeoutMs: 60_000, // 60 seconds
+        emitOwnEvents: true, // Emit events for own messages
+        markOnlineOnConnect: true, // Mark client as online on connect
+        syncFullHistory: false, // Don't sync full history to save bandwidth
+      });
+
+      // Set up event handlers
+      this.setupEventHandlers();
+
+    } catch (error) {
+      this.logger.error('Failed to start WhatsApp service:', error);
+      this.handleConnectionError(error);
+    }
+  }
+
+  private setupEventHandlers(): void {
+    if (!this.sock) return;
+
+    // Credentials update handler
+    this.sock.ev.on('creds.update', async () => {
+      if (this.saveCreds) {
+        await this.saveCreds();
+      }
+    });
+
+    // Connection update handler
+    this.sock.ev.on('connection.update', (update) => {
+      this.handleConnectionUpdate(update);
+    });
+
+    // Message handler
+    this.sock.ev.on('messages.upsert', ({ messages, type }) => {
+      this.handleMessages(messages, type);
+    });
+  }
+
+  private async handleConnectionUpdate(update: Partial<ConnectionState>): Promise<void> {
+    const { connection, lastDisconnect, qr } = update;
+    this.connectionState = connection || 'close';
+
+    if (qr) {
+      await this.handleQRCode(qr);
+    }
+
+    if (connection === 'close') {
+      await this.handleDisconnection(lastDisconnect);
+    } else if (connection === 'open') {
+      await this.handleSuccessfulConnection();
+    }
+  }
+
+  private async handleQRCode(qr: string): Promise<void> {
+    this.qrCode = qr;
+    this.logger.log('New QR code received. Scan with WhatsApp to authenticate.');
+    
+    // Generate terminal QR
+    const qrToPrint = qr.includes(',') ? qr.split(',')[0].trim() : qr.trim();
+    qrcode.generate(qrToPrint, { small: true });
+
+    // Store QR image
+    try {
+      const qrImageBuffer = await qrcodeGenerator.toBuffer(qr);
+      fs.writeFileSync(path.join(SESSION_DIR, 'latest-qr.png'), qrImageBuffer);
+    } catch (error) {
+      this.logger.error('Failed to generate QR image:', error);
+    }
+  }
+
+  private async handleDisconnection(lastDisconnect: any): Promise<void> {
+    this.isConnectedFlag = false;
+    const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+    if (shouldReconnect && this.connectionRetryCount < this.maxConnectionRetries) {
+      this.connectionRetryCount++;
+      this.logger.log(`Attempting to reconnect... (Attempt ${this.connectionRetryCount}/${this.maxConnectionRetries})`);
+      
+      // Schedule reconnection
+      setTimeout(() => {
+        this.start();
+      }, RECONNECT_INTERVAL * this.connectionRetryCount); // Exponential backoff
+    } else if (statusCode === DisconnectReason.loggedOut) {
+      this.logger.warn('WhatsApp session logged out. New QR code scan required.');
+      this.cleanup();
+      await this.deleteSession();
+      await this.start(); // Restart to get new QR code
+    } else {
+      this.logger.error('Max reconnection attempts reached or permanent disconnection.');
+      this.cleanup();
+    }
+  }
+
+  private async handleSuccessfulConnection(): Promise<void> {
+    this.isConnectedFlag = true;
+    this.qrCode = null;
+    this.connectionRetryCount = 0;
+    this.logger.log('WhatsApp connection established successfully.');
+    
+    // Flush credentials to disk immediately after successful connection
+    if (this.saveCreds) {
+      try {
+        await this.saveCreds();
+      } catch (error) {
+        this.logger.error('Failed to save credentials after connection:', error);
+      }
+    }
+  }
+
+  private async deleteSession(): Promise<void> {
+    try {
+      await fs.promises.rm(SESSION_DIR, { recursive: true, force: true });
+      await fs.promises.mkdir(SESSION_DIR, { recursive: true });
+      this.logger.log('WhatsApp session deleted successfully');
+    } catch (error) {
+      this.logger.error('Failed to delete WhatsApp session:', error);
+    }
+  }
+
+  private handleConnectionError(error: any): void {
+    this.logger.error('WhatsApp connection error:', error);
+    if (this.connectionRetryCount < this.maxConnectionRetries) {
+      this.connectionRetryCount++;
+      setTimeout(() => {
+        this.start();
+      }, RECONNECT_INTERVAL * this.connectionRetryCount);
+    } else {
+      this.logger.error('Max connection retries reached. Manual restart required.');
+    }
   }
 
   private extractMessageText(message: WAMessageContent | undefined | null): string {
@@ -123,159 +316,99 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     return "[Media or non-text message]";
   }
 
-  async start(): Promise<void> {
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    this.logger.log(`Using Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
+  private async handleMessages(messages: WAMessage[], type: string): Promise<void> {
+    if (type !== 'notify') { // only process new messages that should be notified
+      return;
+    }
 
-    this.sock = makeWASocket({
-      version,
-      auth: state,
-      logger: this.baileysLogger,
-      browser: ['NestJS-POS', 'Chrome', '1.0.0'],
-    });
+    for (const m of messages) {
+      if (!m.message) continue; // Skip if message content is empty
 
-    this.sock.ev.on('creds.update', saveCreds);
+      // Log basic info
+      // this.logger.debug(`Raw message: ${JSON.stringify(m, null, 2)}`);
+      const from = m.key.remoteJid;
+      const messageId = m.key.id;
 
-    this.sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-      this.connectionState = connection || 'close';
-
-      if (qr) {
-        this.qrCode = qr; // Store the full QR string for the HTTP endpoint
-        this.logger.log(`Full QR string received: ${qr}`); // Log the full QR string
-
-        // Baileys now typically sends a string like "1@longstring,anotherlongstring,anotherlongstring=="
-        // The first part before the comma is usually enough for qrcode-terminal. Added trim() for safety.
-        const qrToPrint = qr.includes(',') ? qr.split(',')[0].trim() : qr.trim();
-        this.logger.log(`String being used for terminal QR: "${qrToPrint}"`); // Log the processed string
-
-        this.logger.log('New QR code received. Scan below or access via /api/whatsapp/qr-code endpoint:');
-        qrcode.generate(qrToPrint, { small: true }, (qrAscii) => {
-          console.log(qrAscii); // Print QR to console
-        });
-      }
-      if (connection === 'close') {
-        this.isConnectedFlag = false;
-        // this.qrCode = null; // Don't nullify here if we want the last QR to be retrievable if connection drops before open
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        this.logger.error(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
-        if (shouldReconnect) {
-          this.connectionRetryCount++;
-          if (this.connectionRetryCount <= this.maxConnectionRetries) {
-            this.logger.log(`Attempting to reconnect... (Attempt ${this.connectionRetryCount})`);
-            this.start();
-          } else {
-            this.logger.error('Max reconnection attempts reached. Check connection or manually restart.');
-          }
-        } else {
-          this.logger.log('Connection closed permanently (likely logged out). New QR scan required.');
-          this.qrCode = null; // Clear QR here as it's definitely invalid
-        }
-      } else if (connection === 'open') {
-        this.isConnectedFlag = true;
-        this.qrCode = null; // Clear QR code once connection is open
-        this.connectionRetryCount = 0;
-        this.logger.log('WhatsApp connection successful.');
-      }
-    });
-
-    this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') { // only process new messages that should be notified
-        return;
+      // 1. Cache the message if it has an ID (for deletion tracking)
+      if (messageId) {
+        this.messageCache.set(messageId, m);
+        // Optional: Add TTL for cache entries
+        // setTimeout(() => this.messageCache.delete(messageId), 24 * 3600 * 1000); // 24 hour TTL
       }
 
-      for (const m of messages) {
-        if (!m.message) continue; // Skip if message content is empty
+      // 2. Handle REVOKE messages (deleted messages)
+      // Check if this is a protocol message indicating a revoke
+      if (m.message?.protocolMessage?.type === proto.Message.ProtocolMessage.Type.REVOKE) {
+        const revokedMsgId = m.message.protocolMessage.key?.id;
+        if (revokedMsgId) {
+          const originalMessage = this.messageCache.get(revokedMsgId);
+          const deletedByJid = m.message.protocolMessage.key?.remoteJid || from; // Who sent the revoke
+          const deletedByParticipantJid = m.message.protocolMessage.key?.participant || m.key.participant || deletedByJid;
+          const actorName = m.pushName || deletedByParticipantJid?.split('@')[0] || 'Someone';
 
-        // Log basic info
-        // this.logger.debug(`Raw message: ${JSON.stringify(m, null, 2)}`);
-        const from = m.key.remoteJid;
-        const messageId = m.key.id;
-
-        // 1. Cache the message if it has an ID (for deletion tracking)
-        if (messageId) {
-          this.messageCache.set(messageId, m);
-          // Optional: Add TTL for cache entries
-          // setTimeout(() => this.messageCache.delete(messageId), 24 * 3600 * 1000); // 24 hour TTL
-        }
-
-        // 2. Handle REVOKE messages (deleted messages)
-        // Check if this is a protocol message indicating a revoke
-        if (m.message?.protocolMessage?.type === proto.Message.ProtocolMessage.Type.REVOKE) {
-          const revokedMsgId = m.message.protocolMessage.key?.id;
-          if (revokedMsgId) {
-            const originalMessage = this.messageCache.get(revokedMsgId);
-            const deletedByJid = m.message.protocolMessage.key?.remoteJid || from; // Who sent the revoke
-            const deletedByParticipantJid = m.message.protocolMessage.key?.participant || m.key.participant || deletedByJid;
-            const actorName = m.pushName || deletedByParticipantJid?.split('@')[0] || 'Someone';
-
-            if (originalMessage) {
-              const originalSenderJid = originalMessage.key.remoteJid;
-              const originalParticipant = originalMessage.key.participant || originalSenderJid;
-              const originalSenderName = originalMessage.pushName || originalParticipant?.split('@')[0] || 'Unknown';
-              
-              let content = this.extractMessageText(originalMessage.message);
-              if (!content.trim()) {
-                content = this.getMediaType(originalMessage.message);
-              }
-              const notification = `Message deleted by ${actorName} (sent by ${originalSenderName} in ${originalSenderJid}):\n\"${content}\"`;
-              // this.logger.log(`Sending deletion notification to admin: ${notification}`); // Commented out
-              // await this.sendMessage(this.adminJid, notification); // Commented out admin forward
-              this.messageCache.delete(revokedMsgId); // Clean up cache
-            } else {
-              // this.logger.log(`Original message for revoked ID ${revokedMsgId} not found in cache.`); // Commented out
-              // await this.sendMessage(this.adminJid, `A message (ID: ${revokedMsgId}) was deleted by ${actorName} from ${deletedByJid}, but its original content was not in cache.`); // Commented out admin forward
+          if (originalMessage) {
+            const originalSenderJid = originalMessage.key.remoteJid;
+            const originalParticipant = originalMessage.key.participant || originalSenderJid;
+            const originalSenderName = originalMessage.pushName || originalParticipant?.split('@')[0] || 'Unknown';
+            
+            let content = this.extractMessageText(originalMessage.message);
+            if (!content.trim()) {
+              content = this.getMediaType(originalMessage.message);
             }
-          }
-          continue; // Processed as a revoke
-        }
-
-        // 3. Handle Status/Broadcast messages
-        if (from === 'status@broadcast') {
-          const senderName = m.pushName || m.key.participant?.split('@')[0] || 'Unknown Contact';
-          let statusContent = this.extractMessageText(m.message);
-          if (!statusContent.trim()) {
-            statusContent = this.getMediaType(m.message);
-          }
-          const broadcastNotification = `Status from ${senderName}: ${statusContent}`;
-          // this.logger.log(`Forwarding status to admin: ${broadcastNotification}`); // Commented out
-          // await this.sendMessage(this.adminJid, broadcastNotification); // Commented out admin forward
-          continue; // Processed as broadcast
-        }
-        
-        // Ignore messages from self or from the adminJid to prevent loops, unless it's a command for the bot from admin
-        if (m.key.fromMe || from === this.adminJid) {
-           // Log if needed: this.logger.debug(`Ignoring message from self or admin JID: ${from}`);
-           // We still cache them above, but don't process for auto-reply/AI.
-           continue;
-        }
-
-        // ---- Existing logic for yo and AI ----
-        // this.logger.log(`Processing message from ${from}: ${JSON.stringify(m.message)}`); // Commented out
-        const messageText = this.extractMessageText(m.message);
-
-        if (messageText && from) { // Added null check for from
-          const lowerCaseMessage = messageText.toLowerCase();
-          if (lowerCaseMessage === 'yo') {
-            // this.logger.log('Received "yo", replying with "lol"'); // Commented out
-            await this.sendMessage(from, 'lol');
+            const notification = `Message deleted by ${actorName} (sent by ${originalSenderName} in ${originalSenderJid}):\n\"${content}\"`;
+            // this.logger.log(`Sending deletion notification to admin: ${notification}`); // Commented out
+            // await this.sendMessage(this.adminJid, notification); // Commented out admin forward
+            this.messageCache.delete(revokedMsgId); // Clean up cache
           } else {
-            // this.logger.log(`Sending to AI chatbot: "${messageText}" from ${from}`); // Commented out
-            // const aiResponse = await this.aiChatbotService.handleIncomingMessage(
-            //   messageText, // Corrected: first argument is messageText
-            //   from,      // Corrected: second argument is senderId (from)
-            // );
-            // await this.sendMessage(from, aiResponse);
-            this.logger.log(`AI chatbot auto-reply disabled. Received message: "${messageText}" from ${from}`);
+            // this.logger.log(`Original message for revoked ID ${revokedMsgId} not found in cache.`); // Commented out
+            // await this.sendMessage(this.adminJid, `A message (ID: ${revokedMsgId}) was deleted by ${actorName} from ${deletedByJid}, but its original content was not in cache.`); // Commented out admin forward
           }
-        } else {
-          // this.logger.log('No text content found in message or sender JID missing, not processing for yo/AI.'); // Commented out
         }
+        continue; // Processed as a revoke
       }
-    });
 
-    // this.logger.log('WhatsApp event handlers configured.'); // Commented out
+      // 3. Handle Status/Broadcast messages
+      if (from === 'status@broadcast') {
+        const senderName = m.pushName || m.key.participant?.split('@')[0] || 'Unknown Contact';
+        let statusContent = this.extractMessageText(m.message);
+        if (!statusContent.trim()) {
+          statusContent = this.getMediaType(m.message);
+        }
+        const broadcastNotification = `Status from ${senderName}: ${statusContent}`;
+        // this.logger.log(`Forwarding status to admin: ${broadcastNotification}`); // Commented out
+        // await this.sendMessage(this.adminJid, broadcastNotification); // Commented out admin forward
+        continue; // Processed as broadcast
+      }
+      
+      // Ignore messages from self or from the adminJid to prevent loops, unless it's a command for the bot from admin
+      if (m.key.fromMe || from === this.adminJid) {
+         // Log if needed: this.logger.debug(`Ignoring message from self or admin JID: ${from}`);
+         // We still cache them above, but don't process for auto-reply/AI.
+         continue;
+      }
+
+      // ---- Existing logic for yo and AI ----
+      // this.logger.log(`Processing message from ${from}: ${JSON.stringify(m.message)}`); // Commented out
+      const messageText = this.extractMessageText(m.message);
+
+      if (messageText && from) { // Added null check for from
+        const lowerCaseMessage = messageText.toLowerCase();
+        if (lowerCaseMessage === 'yo') {
+          // this.logger.log('Received "yo", replying with "lol"'); // Commented out
+          await this.sendMessage(from, 'lol');
+        } else {
+          // this.logger.log(`Sending to AI chatbot: "${messageText}" from ${from}`); // Commented out
+          // const aiResponse = await this.aiChatbotService.handleIncomingMessage(
+          //   messageText, // Corrected: first argument is messageText
+          //   from,      // Corrected: second argument is senderId (from)
+          // );
+          // await this.sendMessage(from, aiResponse);
+          this.logger.log(`AI chatbot auto-reply disabled. Received message: "${messageText}" from ${from}`);
+        }
+      } else {
+        // this.logger.log('No text content found in message or sender JID missing, not processing for yo/AI.'); // Commented out
+      }
+    }
   }
 
   async sendMessage(to: string, text: string, media?: { buffer: Buffer, mimetype: string, fileName: string }): Promise<WAMessage | undefined> {

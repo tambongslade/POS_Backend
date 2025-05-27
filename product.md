@@ -10,7 +10,7 @@ Products in the system have the following key attributes:
 - Price (required, selling price)
 - Cost Price (required)
 - Low Stock Threshold (optional)
-- IMEI (optional, unique)
+- IMEI (optional, unique, single value)
 
 ## IMEI Handling
 The IMEI (International Mobile Equipment Identity) is handled as follows:
@@ -19,6 +19,7 @@ The IMEI (International Mobile Equipment Identity) is handled as follows:
 - Must be unique across all products
 - Stored as a VARCHAR in the database
 - Particularly relevant for Phone and Tablet categories
+- Each product can have only one IMEI value
 
 ## How to Add a New Product
 
@@ -42,7 +43,7 @@ POST /api/products
   "price": 999.99,
   "costPrice": 799.99,
   "lowStockThreshold": 5,  // Optional
-  "imei": "123456789012345"  // Optional, max 15 characters
+  "imei": "123456789012345"  // Optional, single IMEI value, max 15 characters
 }
 ```
 
@@ -51,11 +52,13 @@ POST /api/products
    - Always include for individual Phone units
    - Recommended for Tablets
    - Not necessary for Accessories or bulk items
+   - Use a single IMEI per product
 
 2. **IMEI Validation:**
    - Must be unique across all products
    - Maximum 15 characters
    - Should be provided at the time of product creation for trackable items
+   - Cannot provide multiple IMEIs in a single request
 
 3. **IMEI Format:**
    - Standard IMEI format: 15 digits
@@ -111,4 +114,5 @@ The API will return appropriate error messages for:
 - Missing required fields
 - Invalid category values
 - Invalid numerical values
-- Authentication/authorization failures 
+- Authentication/authorization failures
+- Attempting to use non-existent properties (like 'imeis') 
