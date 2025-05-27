@@ -44,6 +44,7 @@ export class ProductController {
     @Query('maxStock', new ParseIntPipe({ optional: true })) maxStock?: number,
     @Query('search') search?: string,
     @Query('lowStock') lowStock?: string,
+    @Query('imei') imei?: string,
   ): Promise<PaginatedProductsResponse> {
     // Parse pagination parameters
     const pageNum = page ? parseInt(page, 10) : 1;
@@ -71,6 +72,7 @@ export class ProductController {
       maxStock,
       search,
       lowStock: isLowStock,
+      imei,
     });
   }
 

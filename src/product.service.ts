@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, FindOptionsWhere, Raw, SelectQueryBuilder } from 'typeorm';
+import { Repository, FindManyOptions, FindOptionsWhere, Raw, SelectQueryBuilder, Brackets } from 'typeorm';
 import { Product, Store } from './models';
 import { CreateProductDto, UpdateProductDto } from './product/dto';
 import { ActivityLogService, LogPayload } from './activity-log/activity-log.service';
@@ -18,6 +18,7 @@ export interface ProductsFilterOptions {
   maxStock?: number;
   search?: string;
   lowStock?: boolean;
+  imei?: string;
 }
 
 @Injectable()
@@ -253,7 +254,7 @@ export class ProductService {
       queryBuilder.andWhere('product.category = :category', { category: options.category });
     }
 
-    // Stock filters
+    // Stock range filter
     if (options.minStock !== undefined) {
       queryBuilder.andWhere('product.stock >= :minStock', { minStock: options.minStock });
     }
@@ -266,12 +267,18 @@ export class ProductService {
       queryBuilder.andWhere('product.stock <= product.lowStockThreshold');
     }
 
-    // Search filter (product name or description)
+    // IMEI search
+    if (options.imei) {
+      queryBuilder.andWhere('product.imei ILIKE :imei', { imei: `%${options.imei}%` });
+    }
+
+    // General search (name, description, or IMEI)
     if (options.search) {
-      queryBuilder.andWhere(
-        '(product.name ILIKE :search OR product.description ILIKE :search)',
-        { search: `%${options.search}%` }
-      );
+      queryBuilder.andWhere(new Brackets(qb => {
+        qb.where('LOWER(product.name) LIKE LOWER(:search)', { search: `%${options.search}%` })
+          .orWhere('LOWER(product.description) LIKE LOWER(:search)', { search: `%${options.search}%` })
+          .orWhere('product.imei LIKE :search', { search: `%${options.search}%` });
+      }));
     }
   }
 
