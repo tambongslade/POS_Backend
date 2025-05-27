@@ -64,7 +64,9 @@ export class AuthService {
   }
 
   async login(user: ValidatedUser & { storeId?: number | null }) { // Use ValidatedUser, ensure storeId can be null
-    const payload = { email: user.email, sub: user.id, roles: user.role, storeId: user.storeId };
+    // Convert single role to array for consistency with guard
+    const roles = Array.isArray(user.role) ? user.role : [user.role];
+    const payload = { email: user.email, sub: user.id, roles: roles, storeId: user.storeId };
     const accessToken = this.jwtService.sign(payload);
 
     // Log successful login

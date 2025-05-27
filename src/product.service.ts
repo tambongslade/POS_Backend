@@ -19,6 +19,7 @@ export interface ProductsFilterOptions {
   search?: string;
   lowStock?: boolean;
   imei?: string;
+  isAdmin?: boolean;
 }
 
 @Injectable()
@@ -279,6 +280,11 @@ export class ProductService {
           .orWhere('LOWER(product.description) LIKE LOWER(:search)', { search: `%${options.search}%` })
           .orWhere('product.imei LIKE :search', { search: `%${options.search}%` });
       }));
+    }
+
+    // Filter out zero stock items for non-admin users
+    if (!options.isAdmin) {
+      queryBuilder.andWhere('product.stock >= 1');
     }
   }
 

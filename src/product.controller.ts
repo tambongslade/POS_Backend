@@ -33,7 +33,9 @@ export class ProductController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async findAll(
+    @Request() req,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
@@ -61,6 +63,9 @@ export class ProductController {
     // Parse boolean filter
     const isLowStock = lowStock === 'true';
 
+    // Check if user is admin or manager
+    const isAdmin = req.user?.roles?.includes(Role.ADMIN) || req.user?.roles?.includes(Role.MANAGER);
+
     return this.productService.findAllPaginated({
       page: pageNum,
       limit: limitNum,
@@ -73,6 +78,7 @@ export class ProductController {
       search,
       lowStock: isLowStock,
       imei,
+      isAdmin,
     });
   }
 
