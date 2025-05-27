@@ -53,6 +53,13 @@ export interface TransactionFollowUp {
   reminderCount: number;
 }
 
+interface PendingResponse {
+  messageId: string;
+  from: string;
+  timestamp: number;
+  handled: boolean;
+}
+
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private sock: WASocket | undefined;
@@ -70,6 +77,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private pendingTransactions: Map<number, TransactionFollowUp> = new Map();
   private authState: any = null;
   private saveCreds: any = null;
+  private readonly ADMIN_NOTIFICATION_NUMBER = '237680233385@s.whatsapp.net';
+  private readonly RESPONSE_DELAY = 3 * 60 * 1000; // 3 minutes in milliseconds
+  private pendingResponses: Map<string, PendingResponse> = new Map();
 
   constructor(
     private configService: ConfigService,
@@ -317,97 +327,62 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async handleMessages(messages: WAMessage[], type: string): Promise<void> {
-    if (type !== 'notify') { // only process new messages that should be notified
-      return;
-    }
+    if (type !== 'notify') return;
 
     for (const m of messages) {
-      if (!m.message) continue; // Skip if message content is empty
+      if (!m.message) continue;
 
-      // Log basic info
-      // this.logger.debug(`Raw message: ${JSON.stringify(m, null, 2)}`);
       const from = m.key.remoteJid;
       const messageId = m.key.id;
-
-      // 1. Cache the message if it has an ID (for deletion tracking)
-      if (messageId) {
-        this.messageCache.set(messageId, m);
-        // Optional: Add TTL for cache entries
-        // setTimeout(() => this.messageCache.delete(messageId), 24 * 3600 * 1000); // 24 hour TTL
-      }
-
-      // 2. Handle REVOKE messages (deleted messages)
-      // Check if this is a protocol message indicating a revoke
-      if (m.message?.protocolMessage?.type === proto.Message.ProtocolMessage.Type.REVOKE) {
-        const revokedMsgId = m.message.protocolMessage.key?.id;
-        if (revokedMsgId) {
-          const originalMessage = this.messageCache.get(revokedMsgId);
-          const deletedByJid = m.message.protocolMessage.key?.remoteJid || from; // Who sent the revoke
-          const deletedByParticipantJid = m.message.protocolMessage.key?.participant || m.key.participant || deletedByJid;
-          const actorName = m.pushName || deletedByParticipantJid?.split('@')[0] || 'Someone';
-
-          if (originalMessage) {
-            const originalSenderJid = originalMessage.key.remoteJid;
-            const originalParticipant = originalMessage.key.participant || originalSenderJid;
-            const originalSenderName = originalMessage.pushName || originalParticipant?.split('@')[0] || 'Unknown';
-            
-            let content = this.extractMessageText(originalMessage.message);
-            if (!content.trim()) {
-              content = this.getMediaType(originalMessage.message);
-            }
-            const notification = `Message deleted by ${actorName} (sent by ${originalSenderName} in ${originalSenderJid}):\n\"${content}\"`;
-            // this.logger.log(`Sending deletion notification to admin: ${notification}`); // Commented out
-            // await this.sendMessage(this.adminJid, notification); // Commented out admin forward
-            this.messageCache.delete(revokedMsgId); // Clean up cache
-          } else {
-            // this.logger.log(`Original message for revoked ID ${revokedMsgId} not found in cache.`); // Commented out
-            // await this.sendMessage(this.adminJid, `A message (ID: ${revokedMsgId}) was deleted by ${actorName} from ${deletedByJid}, but its original content was not in cache.`); // Commented out admin forward
-          }
-        }
-        continue; // Processed as a revoke
-      }
-
-      // 3. Handle Status/Broadcast messages
-      if (from === 'status@broadcast') {
-        const senderName = m.pushName || m.key.participant?.split('@')[0] || 'Unknown Contact';
-        let statusContent = this.extractMessageText(m.message);
-        if (!statusContent.trim()) {
-          statusContent = this.getMediaType(m.message);
-        }
-        const broadcastNotification = `Status from ${senderName}: ${statusContent}`;
-        // this.logger.log(`Forwarding status to admin: ${broadcastNotification}`); // Commented out
-        // await this.sendMessage(this.adminJid, broadcastNotification); // Commented out admin forward
-        continue; // Processed as broadcast
-      }
       
-      // Ignore messages from self or from the adminJid to prevent loops, unless it's a command for the bot from admin
-      if (m.key.fromMe || from === this.adminJid) {
-         // Log if needed: this.logger.debug(`Ignoring message from self or admin JID: ${from}`);
-         // We still cache them above, but don't process for auto-reply/AI.
-         continue;
-      }
+      if (!from || !messageId) continue;
 
-      // ---- Existing logic for yo and AI ----
-      // this.logger.log(`Processing message from ${from}: ${JSON.stringify(m.message)}`); // Commented out
-      const messageText = this.extractMessageText(m.message);
+      // Don't process messages from the admin notification number
+      if (from === this.ADMIN_NOTIFICATION_NUMBER) continue;
 
-      if (messageText && from) { // Added null check for from
-        const lowerCaseMessage = messageText.toLowerCase();
-        if (lowerCaseMessage === 'yo') {
-          // this.logger.log('Received "yo", replying with "lol"'); // Commented out
-          await this.sendMessage(from, 'lol');
-        } else {
-          // this.logger.log(`Sending to AI chatbot: "${messageText}" from ${from}`); // Commented out
-          // const aiResponse = await this.aiChatbotService.handleIncomingMessage(
-          //   messageText, // Corrected: first argument is messageText
-          //   from,      // Corrected: second argument is senderId (from)
-          // );
-          // await this.sendMessage(from, aiResponse);
-          this.logger.log(`AI chatbot auto-reply disabled. Received message: "${messageText}" from ${from}`);
-        }
-      } else {
-        // this.logger.log('No text content found in message or sender JID missing, not processing for yo/AI.'); // Commented out
+      // Store the message in cache for deletion tracking
+      this.messageCache.set(messageId, m);
+
+      // Add to pending responses if it's not already being handled
+      if (!this.pendingResponses.has(messageId)) {
+        this.pendingResponses.set(messageId, {
+          messageId,
+          from,
+          timestamp: Date.now(),
+          handled: false
+        });
+
+        // Schedule response check after delay
+        setTimeout(() => this.checkAndRespond(messageId), this.RESPONSE_DELAY);
       }
+    }
+  }
+
+  private async checkAndRespond(messageId: string): Promise<void> {
+    const pendingResponse = this.pendingResponses.get(messageId);
+    if (!pendingResponse || pendingResponse.handled) return;
+
+    // Check if enough time has passed
+    const elapsed = Date.now() - pendingResponse.timestamp;
+    if (elapsed < this.RESPONSE_DELAY) return;
+
+    // Mark as handled
+    pendingResponse.handled = true;
+    this.pendingResponses.set(messageId, pendingResponse);
+
+    // Get the original message
+    const originalMessage = this.messageCache.get(messageId);
+    if (!originalMessage) return;
+
+    try {
+      // Process the message with AI chatbot
+      const messageText = this.extractMessageText(originalMessage.message);
+      const response = await this.aiChatbotService.handleIncomingMessage(messageText, pendingResponse.from);
+      
+      // Send the response
+      await this.sendMessage(pendingResponse.from, response);
+    } catch (error) {
+      this.logger.error('Failed to process and send response:', error);
     }
   }
 
@@ -759,6 +734,44 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       return true;
     } catch (error) {
       this.logger.error('Failed to send low stock report:', error);
+      return false;
+    }
+  }
+
+  async notifySaleToAdmin(orderData: {
+    orderId: number;
+    items: Array<{
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      imei?: string;
+    }>;
+    totalAmount: number;
+    customerName?: string;
+  }): Promise<boolean> {
+    try {
+      let message = '🛍️ *New Sale Notification*\n\n';
+      message += `Order ID: #${orderData.orderId}\n`;
+      if (orderData.customerName) {
+        message += `Customer: ${orderData.customerName}\n`;
+      }
+      message += '\n*Items:*\n';
+      
+      for (const item of orderData.items) {
+        message += `- ${item.productName}\n`;
+        message += `  Qty: ${item.quantity} × ${item.unitPrice} = ${item.quantity * item.unitPrice}\n`;
+        if (item.imei) {
+          message += `  IMEI: ${item.imei}\n`;
+        }
+        message += '\n';
+      }
+
+      message += `\n💰 *Total Amount:* ${orderData.totalAmount}`;
+
+      await this.sendMessage(this.ADMIN_NOTIFICATION_NUMBER, message);
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send sale notification to admin:', error);
       return false;
     }
   }

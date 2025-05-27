@@ -5,6 +5,7 @@ import { Order, OrderItem, Product, Store, Personnel, Customer } from './models'
 import { CreateOrderDto, UpdateOrderDto } from './order/dto';
 import { ActivityLogService, LogPayload } from './activity-log/activity-log.service';
 import { PaginatedOrdersResponse } from './order.controller';
+import { WhatsappService } from './whatsapp/whatsapp.service';
 
 export interface OrdersFilterOptions {
   page: number;
@@ -30,6 +31,7 @@ export class OrderService {
     @InjectRepository(Customer) private readonly customerRepository: Repository<Customer>,
     private readonly dataSource: DataSource,
     private readonly activityLogService: ActivityLogService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -100,6 +102,24 @@ export class OrderService {
       }
       
       await queryRunner.commitTransaction();
+
+      // Send WhatsApp notification
+      try {
+        await this.whatsappService.notifySaleToAdmin({
+          orderId: savedOrder.id,
+          items: orderItemsToCreate.map(item => ({
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            imei: item.product.imei
+          })),
+          totalAmount: calculatedTotalAmount,
+          customerName: customer?.name
+        });
+      } catch (error) {
+        this.logger.error('Failed to send WhatsApp notification:', error);
+        // Don't throw error here, as the order was already saved successfully
+      }
 
       // Log activity (after successful transaction)
       const logPayload: LogPayload = {
