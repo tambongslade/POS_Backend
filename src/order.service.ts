@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, FindOptionsWhere, SelectQueryBuilder } from 'typeorm';
 import { Order, OrderItem, Product, Store, Personnel, Customer } from './models';
@@ -22,6 +22,8 @@ export interface OrdersFilterOptions {
 
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+
   constructor(
     @InjectRepository(Order) private readonly orderRepository: Repository<Order>,
     @InjectRepository(OrderItem) private readonly orderItemRepository: Repository<OrderItem>,
@@ -114,7 +116,7 @@ export class OrderService {
             imei: item.product.imei
           })),
           totalAmount: calculatedTotalAmount,
-          customerName: customer?.name
+          customerName: customer ? `${customer.firstName} ${customer.lastName}` : undefined
         });
       } catch (error) {
         this.logger.error('Failed to send WhatsApp notification:', error);
