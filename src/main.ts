@@ -9,7 +9,7 @@ async function bootstrap() {
   // Enable CORS with comprehensive configuration
   app.enableCors({
     origin: [
-      'https://pos-dashboard-blue.vercel.app',  // Production frontend
+      'https://pos-dashboard-3we5mmk7n-tambongslades-projects.vercel.app',  // Production frontend
       'http://localhost:5173',                  // Vite dev server
       'http://localhost:3000',                  // Alternative local port
       'http://127.0.0.1:5173',                 // Local IP
