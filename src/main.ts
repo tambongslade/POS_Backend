@@ -6,13 +6,9 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS with specific origin
+  // Enable CORS
   app.enableCors({
-    origin: [
-      'https://pos-dashboard-blue.vercel.app',  // Production Vercel frontend
-      'http://localhost:5173',                  // Local development frontend
-      'http://localhost:3000'                   // Alternative local development port
-    ],
+    origin: true, // Allow any origin for now, or specifically your frontend http://localhost:5173
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
@@ -24,11 +20,6 @@ async function bootstrap() {
     forbidNonWhitelisted: true, // Throw an error if non-whitelisted properties are present
   }));
   // app.useGlobalFilters(new AllExceptionsFilter()); // Uncomment if you have this file
-
-  // Get port from environment variable or default to 5000
-  const port = process.env.PORT || 5000;
-  await app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on port ${port}`);
-  });
+  await app.listen(5000);
 }
 bootstrap();
