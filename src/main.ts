@@ -16,32 +16,7 @@ async function bootstrap() {
     optionsSuccessStatus: 204
   });
 
-  // Enable CORS with comprehensive configuration
-  app.enableCors({
-    origin: [
-      'https://pos-dashboard-3we5mmk7n-tambongslades-projects.vercel.app',  // Production frontend
-      'http://localhost:5173',                  // Vite dev server
-      'http://localhost:3000',                  // Alternative local port
-      'http://127.0.0.1:5173',                 // Local IP
-      'http://127.0.0.1:3000'                  // Local IP alternative port
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Access-Control-Allow-Methods',
-      'Access-Control-Allow-Headers',
-      'Access-Control-Allow-Origin'
-    ],
-    exposedHeaders: ['Content-Length', 'Content-Range'],
-    credentials: true,
-    maxAge: 3600,
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  });
+ 
   
 
   app.useGlobalPipes(new ValidationPipe({
