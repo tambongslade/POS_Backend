@@ -53,13 +53,6 @@ export interface TransactionFollowUp {
   reminderCount: number;
 }
 
-interface PendingResponse {
-  messageId: string;
-  from: string;
-  timestamp: number;
-  handled: boolean;
-}
-
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private sock: WASocket | undefined;
@@ -79,7 +72,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private saveCreds: any = null;
   private readonly ADMIN_NOTIFICATION_NUMBER = '237680233385@s.whatsapp.net';
   private readonly RESPONSE_DELAY = 3 * 60 * 1000; // 3 minutes in milliseconds
-  private pendingResponses: Map<string, PendingResponse> = new Map();
 
   constructor(
     private configService: ConfigService,
@@ -95,7 +87,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
       this.logger.log(`Created WhatsApp session directory: ${SESSION_DIR}`);
     }
-    }
+  }
 
   private initializeLogger(): void {
     this.baileysLogger = pino({ 
@@ -329,11 +321,11 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private async handleMessages(messages: WAMessage[], type: string): Promise<void> {
     if (type !== 'notify') return;
 
-      for (const m of messages) {
+    for (const m of messages) {
       if (!m.message) continue;
 
-        const from = m.key.remoteJid;
-        const messageId = m.key.id;
+      const from = m.key.remoteJid;
+      const messageId = m.key.id;
 
       if (!from || !messageId) continue;
 
@@ -341,48 +333,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       if (from === this.ADMIN_NOTIFICATION_NUMBER) continue;
 
       // Store the message in cache for deletion tracking
-          this.messageCache.set(messageId, m);
+      this.messageCache.set(messageId, m);
 
-      // Add to pending responses if it's not already being handled
-      if (!this.pendingResponses.has(messageId)) {
-        this.pendingResponses.set(messageId, {
-          messageId,
-          from,
-          timestamp: Date.now(),
-          handled: false
-        });
-
-        // Schedule response check after delay
-        setTimeout(() => this.checkAndRespond(messageId), this.RESPONSE_DELAY);
+      // Handle order status inquiries directly
+      const messageText = this.extractMessageText(m.message);
+      if (messageText.toLowerCase().includes('order') || messageText.toLowerCase().includes('status')) {
+        await this.handleOrderStatusInquiry(from, messageText);
       }
-    }
-  }
-
-  private async checkAndRespond(messageId: string): Promise<void> {
-    const pendingResponse = this.pendingResponses.get(messageId);
-    if (!pendingResponse || pendingResponse.handled) return;
-
-    // Check if enough time has passed
-    const elapsed = Date.now() - pendingResponse.timestamp;
-    if (elapsed < this.RESPONSE_DELAY) return;
-
-    // Mark as handled
-    pendingResponse.handled = true;
-    this.pendingResponses.set(messageId, pendingResponse);
-
-    // Get the original message
-    const originalMessage = this.messageCache.get(messageId);
-    if (!originalMessage) return;
-
-    try {
-      // Process the message with AI chatbot
-      const messageText = this.extractMessageText(originalMessage.message);
-      const response = await this.aiChatbotService.handleIncomingMessage(messageText, pendingResponse.from);
-      
-      // Send the response
-      await this.sendMessage(pendingResponse.from, response);
-    } catch (error) {
-      this.logger.error('Failed to process and send response:', error);
     }
   }
 
@@ -391,7 +348,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('WhatsApp not connected. Cannot send message.');
       return undefined;
     }
-    // this.logger.log(`Sending message to ${to}: "${text}"`); // Commented out
+
     try {
       if (media) {
         const messageContent = {
