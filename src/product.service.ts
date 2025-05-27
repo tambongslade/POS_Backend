@@ -57,7 +57,7 @@ export class ProductService {
         cost_price: costPrice,
         lowStockThreshold: lowStockThreshold,
         store: store,
-        imei: createProductDto.imei,
+        imei: createProductDto.imei ?? null
     };
     
     // console.log('ProductData before create:', JSON.stringify(productData, null, 2)); // Kept for debugging if needed
@@ -132,19 +132,15 @@ export class ProductService {
     }
     
     const updatedProductData: Partial<Product> = { ...productUpdateDataRest };
+
+    if (newStore) {
+        updatedProductData.store = newStore;
+        updatedProductData.storeId = newStore.id;
+    }
+
     if (updateProductDto.imei !== undefined) {
       updatedProductData.imei = updateProductDto.imei;
     }
-
-    if (newStore) {
-      updatedProductData.store = newStore;
-      updatedProductData.storeId = newStore.id; // Explicitly set storeId if store changes
-    }
-
-    // No longer need to default price from basePrice
-    // if (updateProductDto.basePrice !== undefined && updateProductDto.price === undefined) {
-    //     updatedProductData.price = updateProductDto.basePrice;
-    // }
 
     // Ensure numeric fields are numbers if provided
     if (updatedProductData.price !== undefined) updatedProductData.price = parseFloat(String(updatedProductData.price));

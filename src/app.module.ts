@@ -17,7 +17,8 @@ import {
   Cart,
   CartItem,
   Customer,
-  Payment
+  Payment,
+  // IMEI
 } from './models';
 import { StoreModule } from './store.module';
 import { PersonnelModule } from './personnel.module';
@@ -72,13 +73,16 @@ import { DashboardModule } from './dashboard/dashboard.module';
         Cart,
         CartItem,
         Customer,
-        Payment
+        Payment,
+        // IMEI
       ],
       synchronize: true,
       logging: ['query', 'error', 'schema'],
       ssl: { 
         rejectUnauthorized: false
       },
+      migrations: [__dirname + '/migrations/*.ts'],
+      migrationsRun: true
     }),
     TypeOrmModule.forFeature([Personnel, Store]), // Add repositories for DebugController
     StoreModule,

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsInt, IsOptional, MaxLength, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, Min, IsInt, IsOptional, MaxLength, IsEnum, IsArray } from 'class-validator';
 import { ProductCategory } from '../../models/product.entity'; // Adjust path if necessary
 
 export class CreateProductDto {
@@ -38,6 +38,6 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(255) // Assuming IMEI has a max length
+  @MaxLength(15)
   imei?: string;
 } 

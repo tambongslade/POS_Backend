@@ -1,5 +1,7 @@
-import { IsString, IsNumber, Min, IsInt, IsOptional, MaxLength, IsEnum } from 'class-validator';
+import { IsString, IsNumber, Min, IsInt, IsOptional, MaxLength, IsEnum, ValidateNested, IsArray } from 'class-validator';
 import { ProductCategory } from '../../models/product.entity'; // Adjust path if necessary
+import { Type } from 'class-transformer';
+// import { IMEIUpdateOperations } from './imei.dto';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -42,6 +44,6 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(255) // Assuming IMEI has a max length
+  @MaxLength(15)
   imei?: string;
 } 

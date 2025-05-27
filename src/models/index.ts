@@ -8,4 +8,5 @@ export * from './sale.entity';
 export * from './cart.entity';
 export * from './cart-item.entity';
 export * from './customer.entity';
-export * from './payment.entity'; 
+export * from './payment.entity';
+// export * from './imei.entity'; 

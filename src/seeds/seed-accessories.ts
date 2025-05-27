@@ -8,9 +8,9 @@ import { CreateProductDto } from '../product/dto/create-product.dto'; // Adjust 
 const productsToSeed: CreateProductDto[] = [
   { name: "SCREEN PROTECTORS", stock: 1050, category: ProductCategory.ACCESSORIES, costPrice: 100, price: 300, storeId: 3, description: "Glass screen protectors", lowStockThreshold: 5 },
   { name: "SILICONE PHONE CASE", stock: 40, category: ProductCategory.ACCESSORIES, costPrice: 300, price: 800, storeId: 3, description: "Silicone protective phone case", lowStockThreshold: 5 },
-  { name: "PHONE BATTERY XR", stock: 5, category: ProductCategory.ACCESSORIES, costPrice: 2500, price: 4500, storeId: 3, description: "Phone battery replacement", lowStockThreshold: 5, imei: "IMEI12345XR" },
-  { name: "BATTERY 12 PRO MAX", stock: 2, category: ProductCategory.ACCESSORIES, costPrice: 3000, price: 5000, storeId: 3, description: "Battery for iPhone 12 Pro Max", lowStockThreshold: 5, imei: "IMEI67890PM" },
-  { name: "BATTERY XS MAX", stock: 5, category: ProductCategory.ACCESSORIES, costPrice: 2700, price: 4700, storeId: 3, description: "Battery for iPhone XS Max", lowStockThreshold: 5, imei: "IMEI13579XM" },
+  { name: "PHONE BATTERY XR", stock: 5, category: ProductCategory.ACCESSORIES, costPrice: 2500, price: 4500, storeId: 3, description: "Phone battery replacement", lowStockThreshold: 5,    },
+  { name: "BATTERY 12 PRO MAX", stock: 2, category: ProductCategory.ACCESSORIES, costPrice: 3000, price: 5000, storeId: 3, description: "Battery for iPhone 12 Pro Max", lowStockThreshold: 5,},
+  { name: "BATTERY XS MAX", stock: 5, category: ProductCategory.ACCESSORIES, costPrice: 2700, price: 4700, storeId: 3, description: "Battery for iPhone XS Max", lowStockThreshold: 5,  },
  
   { name: "SILICONE IPHONE Case", stock: 352, category: ProductCategory.ACCESSORIES, costPrice: 800, price: 1500, storeId: 3, description: "Silicone iPhone protective case", lowStockThreshold: 5 },
   { name: "ORIGINAL SILICONE", stock: 72, category: ProductCategory.ACCESSORIES, costPrice: 1200, price: 2000, storeId: 3, description: "High-quality original Samsung charger", lowStockThreshold: 5 },

@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, OneToOne, UpdateDateColumn } from 'typeorm';
 import { Store } from './store.entity';
+
 
 export enum ProductCategory {
   PHONE = 'Phone',
@@ -39,6 +40,9 @@ export class Product {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
   @Column('decimal', { precision: 10, scale: 2 }) // This is the selling price
   price: number; 
 
@@ -48,7 +52,7 @@ export class Product {
   @Column('int', { nullable: true, name: 'low_stock_threshold' }) // Renamed from stock_level and mapped to DB name
   lowStockThreshold: number;
 
-  @Column({ nullable: true }) // IMEI is optional
+  @Column({ type: 'varchar', length: 15, unique: true, nullable: true })
   imei?: string;
 
   // We might need an @UpdateDateColumn if products can be updated
