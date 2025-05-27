@@ -95,7 +95,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
       this.logger.log(`Created WhatsApp session directory: ${SESSION_DIR}`);
     }
-  }
+    }
 
   private initializeLogger(): void {
     this.baileysLogger = pino({ 
@@ -329,19 +329,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private async handleMessages(messages: WAMessage[], type: string): Promise<void> {
     if (type !== 'notify') return;
 
-    for (const m of messages) {
+      for (const m of messages) {
       if (!m.message) continue;
 
-      const from = m.key.remoteJid;
-      const messageId = m.key.id;
-      
+        const from = m.key.remoteJid;
+        const messageId = m.key.id;
+
       if (!from || !messageId) continue;
 
       // Don't process messages from the admin notification number
       if (from === this.ADMIN_NOTIFICATION_NUMBER) continue;
 
       // Store the message in cache for deletion tracking
-      this.messageCache.set(messageId, m);
+          this.messageCache.set(messageId, m);
 
       // Add to pending responses if it's not already being handled
       if (!this.pendingResponses.has(messageId)) {
